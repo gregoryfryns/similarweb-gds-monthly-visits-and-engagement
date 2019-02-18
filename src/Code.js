@@ -61,6 +61,36 @@ function getSchema(request) {
         defaultAggregationType: 'SUM'
       },
       {
+        name: 'total_page_views',
+        dataType: 'NUMBER',
+        semantics: {
+          conceptType: 'METRIC',
+          semanticType: 'NUMBER',
+          isReaggregatable: true
+        },
+        defaultAggregationType: 'SUM'
+      },
+      {
+        name: 'total_visits_duration',
+        dataType: 'NUMBER',
+        semantics: {
+          conceptType: 'METRIC',
+          semanticType: 'NUMBER',
+          isReaggregatable: true
+        },
+        defaultAggregationType: 'SUM'
+      },
+      {
+        name: 'bounced_visits',
+        dataType: 'NUMBER',
+        semantics: {
+          conceptType: 'METRIC',
+          semanticType: 'NUMBER',
+          isReaggregatable: true
+        },
+        defaultAggregationType: 'SUM'
+      },
+      {
         name: 'date',
         dataType: 'STRING',
         semantics: {
@@ -88,7 +118,8 @@ function getSchema(request) {
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
-  var domains = request.configParams.domains.split(',').slice(0, 10).map(function(x) {return x.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();}),
+  var MAX_NB_DOMAINS = 10;
+  var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(x) {return x.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();}),
     apiKey = request.configParams.apiKey,
     country = request.configParams.country,
     data = { desktop: {}, mobile: {} };
@@ -116,60 +147,72 @@ function isAdminUser() {
 }
 
 function buildTabularData(data, dataSchema) {
-  var requestedData = [],
-    desktopData,
-    mobileData;
+  var requestedData = [];
+
   Object.keys(data).forEach(function(dom) {
-    desktopData = data[dom].desktop;
-    if (desktopData && desktopData.visits) {
-      desktopData.visits.forEach(function(dailyVisits) {
-        var values = [];
-        dataSchema.forEach(function (field) {
-          switch (field.name) {
-          case 'visits':
-            values.push(dailyVisits.visits);
-            break;
-          case 'date':
-            values.push(dailyVisits.date.replace(/-/g, ''));
-            break;
-          case 'domain':
-            values.push(dom);
-            break;
-          case 'device':
-            values.push('Desktop');
-            break;
-          default:
-            values.push('');
-          }
-        });
-        requestedData.push({ values: values });
+    data[dom].desktop.forEach(function(date) {
+      var values = [];
+      dataSchema.forEach(function (field) {
+        switch (field.name) {
+        case 'visits':
+          values.push(date.visits);
+          break;
+        case 'total_page_views':
+          values.push(date.pages_per_visit * date.visits);
+          break;
+        case 'total_visits_duration':
+          values.push(date.average_visit_duration * date.visits);
+          break;
+        case 'bounced_visits':
+          values.push(date.bounce_rate * date.visits);
+          break;
+        case 'date':
+          values.push(date.replace(/-/g, ''));
+          break;
+        case 'domain':
+          values.push(dom);
+          break;
+        case 'device':
+          values.push('Desktop');
+          break;
+        default:
+          values.push('');
+        }
       });
-    }
-    mobileData = data[dom].mobile;
-    if (mobileData && mobileData.visits) {
-      mobileData.visits.forEach(function(dailyVisits) {
-        var values = [];
-        dataSchema.forEach(function (field) {
-          switch (field.name) {
-          case 'visits':
-            values.push(dailyVisits.visits);
-            break;
-          case 'date':
-            values.push(dailyVisits.date.replace(/-/g, ''));
-            break;
-          case 'domain':
-            values.push(dom);
-            break;
-          case 'device':
-            values.push('Mobile Web');
-            break;
-          default:
-            values.push('');
-          }
-        });
-        requestedData.push({ values: values });
+      requestedData.push({ values: values });
+    });
+
+    data[dom].mobile.forEach(function(date) {
+      var values = [];
+      dataSchema.forEach(function (field) {
+        switch (field.name) {
+        case 'visits':
+          values.push(date.visits);
+          break;
+        case 'total_page_views':
+          values.push(date.pages_per_visit * date.visits);
+          break;
+        case 'total_visits_duration':
+          values.push(date.average_visit_duration * date.visits);
+          break;
+        case 'bounced_visits':
+          values.push(date.bounce_rate * date.visits);
+          break;
+        case 'date':
+          values.push(date.replace(/-/g, ''));
+          break;
+        case 'domain':
+          values.push(dom);
+          break;
+        case 'device':
+          values.push('Mobile Web');
+          break;
+        default:
+          values.push('');
+        }
       });
-    }
+      requestedData.push({ values: values });
+    });
   });
 
   return {
@@ -179,40 +222,96 @@ function buildTabularData(data, dataSchema) {
 }
 
 function fetchFromAPI(domain, country, apiKey) {
-  var result = {},
-    response;
+  var result = { desktop: {}, mobile: {} };
+
+  var params = {
+    api_key: apiKey,
+    country: country,
+    main_domain_only: 'false',
+    show_verified: 'false'
+  };
 
   // Fetch and parse data from API
-  var urlDesktop = [
-    'https://api.similarweb.com/v1/website/',
-    domain,
-    '/traffic-and-engagement/visits-full',
-    '?api_key=', apiKey,
-    '&country=', country,
-    '&main_domain_only=false',
-    '&show_verified=false'
-  ].join('');
+  var desktopVisits = httpGet('https://api.similarweb.com/v1/website/' + domain + '/traffic-and-engagement/visits-full', params);
+  if (desktopVisits && desktopVisits.visits) {
+    desktopVisits.visits.forEach(function(day) {
+      var date = day.date;
+      if (!result.desktop.hasOwnProperty(date)) {
+        result.desktop[date] = {};
+      }
+      result.desktop[date].visits = day.visits;
+    });
+  }
 
-  console.log('Fetching', urlDesktop.replace('?api_key=' + apiKey, '?api_key=xxxxxxxxxxxxxxxx' + apiKey.slice(-1 * (apiKey.length - 26))));
-  response = UrlFetchApp.fetch(urlDesktop, { 'muteHttpExceptions': true });
-  console.log('Response', response);
+  var desktopPagesPerVisit = httpGet('https://api.similarweb.com/v1/website/' + domain + '/traffic-and-engagement/pages-per-visit-full', params);
+  if (desktopPagesPerVisit && desktopPagesPerVisit.pages_per_visit) {
+    desktopPagesPerVisit.pages_per_visit.forEach(function(day) {
+      var date = day.date;
+      if (result.desktop.hasOwnProperty(date)) {
+        result.desktop[date].pages_per_visit = day.pages_per_visit;
+      }
+    });
+  }
 
-  result.desktop = JSON.parse(response);
+  var desktopAvgVisitDuration = httpGet('https://api.similarweb.com/v1/website/' + domain + '/traffic-and-engagement/average-visit-duration-full', params);
+  if (desktopAvgVisitDuration && desktopAvgVisitDuration.average_visit_duration) {
+    desktopAvgVisitDuration.average_visit_duration.forEach(function(day) {
+      var date = day.date;
+      if (result.desktop.hasOwnProperty(date)) {
+        result.desktop[date].average_visit_duration = day.average_visit_duration;
+      }
+    });
+  }
 
-  var urlMobile = [
-    'https://api.similarweb.com/v2/website/',
-    domain,
-    '/mobile-web/visits-full',
-    '?api_key=', apiKey,
-    '&country=', country,
-    '&main_domain_only=false',
-    '&show_verified=false'
-  ].join('');
+  var desktopBounceRate = httpGet('https://api.similarweb.com/v1/website/' + domain + '/traffic-and-engagement/bounce-rate-full', params);
+  if (desktopBounceRate && desktopBounceRate.bounce_rate) {
+    desktopBounceRate.bounce_rate.forEach(function(day) {
+      var date = day.date;
+      if (result.desktop.hasOwnProperty(date)) {
+        result.desktop[date].bounce_rate = day.bounce_rate;
+      }
+    });
+  }
 
-  console.log('Fetching', urlMobile.replace('?api_key=' + apiKey, '?api_key=xxxxxxxxxxxxxxxx' + apiKey.slice(-1 * (apiKey.length - 26))));
-  response = UrlFetchApp.fetch(urlMobile, { 'muteHttpExceptions': true });
-  console.log('Response', response);
-  result.mobile = JSON.parse(response);
+  var mobileVisits = httpGet('https://api.similarweb.com/v2/website/' + domain + '/mobile-web/visits-full', params);
+  if (mobileVisits && mobileVisits.visits) {
+    mobileVisits.visits.forEach(function(day) {
+      var date = day.date;
+      if (!result.mobile.hasOwnProperty(date)) {
+        result.mobile[date] = {};
+      }
+      result.mobile[date].visits = day.visits;
+    });
+  }
+  var mobilePagesPerVisit = httpGet('https://api.similarweb.com/v2/website/' + domain + '/mobile-web/pages-per-visit-full', params);
+  if (mobilePagesPerVisit && mobilePagesPerVisit.pages_per_visit) {
+    mobilePagesPerVisit.pages_per_visit.forEach(function(day) {
+      var date = day.date;
+      if (result.desktop.hasOwnProperty(date)) {
+        result.desktop[date].pages_per_visit = day.pages_per_visit;
+      }
+    });
+  }
+
+  var mobileAvgVisitDuration = httpGet('https://api.similarweb.com/v2/website/' + domain + '/mobile-web/average-visit-duration-full', params);
+  if (mobileAvgVisitDuration && mobileAvgVisitDuration.average_visit_duration) {
+    mobileAvgVisitDuration.average_visit_duration.forEach(function(day) {
+      var date = day.date;
+      if (result.desktop.hasOwnProperty(date)) {
+        result.desktop[date].average_visit_duration = day.average_visit_duration;
+      }
+    });
+  }
+
+  var mobileBounceRate = httpGet('https://api.similarweb.com/v2/website/' + domain + '/mobile-web/bounce-rate-full', params);
+  if (mobileBounceRate && mobileBounceRate.bounce_rate) {
+    mobileBounceRate.bounce_rate.forEach(function(day) {
+      var date = day.date;
+      if (result.desktop.hasOwnProperty(date)) {
+        result.desktop[date].bounce_rate = day.bounce_rate;
+      }
+    });
+  }
 
   return result;
 }
@@ -253,4 +352,28 @@ function setInCache(data, cache) {
   } catch (e) {
     console.log('Error when storing in cache', e);
   }
+}
+
+/**
+ * Send a HTTP GET request to an API endpoint and return the results in a JavaScript object
+ *
+ * @param {String} url - url to the desired API endpoint
+ * @param {object} params - object that contains the URL parameters and their values
+ * @return {object} Results returned by the API, or null if the API call wasn't successful
+ */
+function httpGet(url, params) {
+  if (typeof params === 'undefined') {
+    params = {};
+  }
+
+  var urlParams = Object.keys(params).map(function(k) {return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+  var fullUrl = url + (urlParams.length > 0 ? '?' + urlParams : '');
+
+  console.log('Fetching', fullUrl.replace(/api_key=[0-9a-f]{26}/gi, 'api_key=xxxxxxxxxxx'));
+  var response = UrlFetchApp.fetch(fullUrl, { 'muteHttpExceptions': true });
+  console.log('Response', response);
+
+  var data = JSON.parse(response);
+
+  return data;
 }
