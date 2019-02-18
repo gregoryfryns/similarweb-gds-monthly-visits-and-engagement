@@ -24,6 +24,8 @@
     "@google/clasp": "^2.0.1",
     "@types/google-apps-script": "0.0.37",
     "babel-jest": "^24.1.0",
+    "eslint": "^5.14.0",
+    "eslint-plugin-jest": "^22.3.0",
     "jest": "^24.1.0"
   }
 }

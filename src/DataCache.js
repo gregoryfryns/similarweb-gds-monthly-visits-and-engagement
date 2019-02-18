@@ -9,9 +9,9 @@
  *
  * @return {object} DataCache.
  */
-function DataCache(cacheService, api_key, domain, country) {
+function DataCache(cacheService, apiKey, domain, country) {
   this.service = cacheService;
-  this.cacheKey = this.buildCacheKey(api_key, domain, country);
+  this.cacheKey = this.buildCacheKey(apiKey, domain, country);
 
   return this;
 }
@@ -27,8 +27,8 @@ DataCache.MAX_CACHE_SIZE = 100 * 1024;
  *
  * @return {String} cache key
  */
-DataCache.prototype.buildCacheKey = function(api_key, domain, country) {
-  return api_key + '_' + domain + '_' + country;
+DataCache.prototype.buildCacheKey = function(apiKey, domain, country) {
+  return apiKey + '_' + domain + '_' + country;
 };
 
 /**
@@ -85,7 +85,8 @@ DataCache.prototype.splitInChunks = function(str) {
   return chunks;
 };
 
-if (typeof(exports) !== "undefined") {
+/* global exports */
+if (typeof(exports) !== 'undefined') {
   exports['__esModule'] = true;
   exports['default'] = DataCache;
 }
