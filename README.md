@@ -7,9 +7,9 @@ A SimilarWeb API key is required to import the data. You can get yours by follow
 ## Preview
 Here's an example GDS report using this connector:
 
-![Select Connector](https://github.com/gregoryfryns/similarweb-gds-connector/screenshots/select_connector.png)
+![Select Connector](https://github.com/gregoryfryns/similarweb-gds-connector/blob/master/screenshots/select_connector.png)
 
-![GDS Screenshot](https://github.com/gregoryfryns/similarweb-gds-connector/screenshots/example_report.png)
+![GDS Screenshot](https://github.com/gregoryfryns/similarweb-gds-connector/blob/master/screenshots/example_report.png)
 
 
 ## More Info
