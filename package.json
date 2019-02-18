@@ -1,5 +1,5 @@
 {
-  "name": "similarweb_gds_connector",
+  "name": "similarweb-gds-connector",
   "version": "1.0.0",
   "description": "SimilarWeb connector for Google Data Studio",
   "main": "Code.js",
@@ -13,7 +13,8 @@
     "google",
     "data",
     "studio",
-    "gds"
+    "gds",
+    "connector"
   ],
   "author": "Gregory Fryns",
   "license": "MIT",
