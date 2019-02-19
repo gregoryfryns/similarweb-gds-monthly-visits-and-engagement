@@ -5,13 +5,13 @@ if (typeof(require) !== 'undefined') {
 }
 
 // eslint-disable-next-line no-unused-vars
-function getAuthType() {
+function getAuthType(request) {
   var response = { type: 'NONE' };
   return response;
 }
 
 // eslint-disable-next-line no-unused-vars
-function getConfig() {
+function getConfig(request) {
   var config = {
     configParams: [
       {
@@ -122,20 +122,23 @@ function getData(request) {
   var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(x) {return x.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();}),
     apiKey = request.configParams.apiKey,
     country = request.configParams.country,
-    data = { desktop: {}, mobile: {} };
+    data = {};
 
   for (var i in domains) {
     var dom = domains[i];
 
-    var cache = new DataCache(CacheService.getUserCache(), apiKey, dom, country);
-    var domData = null;
+    if (dom) {
+      var cache = new DataCache(CacheService.getUserCache(), apiKey, dom, country);
+      var domData = null;
 
-    domData = fetchFromCache(cache);
-    if (!domData) {
-      domData = fetchFromAPI(dom, country, apiKey);
-      setInCache(domData, cache);
+      domData = fetchFromCache(cache);
+      if (!domData) {
+        domData = fetchFromAPI(dom, country, apiKey);
+        setInCache(domData, cache);
+      }
+      data[dom] = domData;
+      console.log('Data for ' + dom, JSON.stringify(domData).slice(0, 500));
     }
-    data[dom] = domData;
   }
 
   return buildTabularData(data, prepareSchema(request));
@@ -148,23 +151,25 @@ function isAdminUser() {
 
 function buildTabularData(data, dataSchema) {
   var requestedData = [];
-
+  console.log('Data Schema', dataSchema);
   Object.keys(data).forEach(function(dom) {
-    data[dom].desktop.forEach(function(date) {
+    // Desktop visits & engagement
+    Object.keys(data[dom].desktop).forEach(function(date) {
+      var dailyValues = data[dom].desktop[date];
       var values = [];
       dataSchema.forEach(function (field) {
         switch (field.name) {
         case 'visits':
-          values.push(date.visits);
+          values.push(dailyValues.visits);
           break;
         case 'total_page_views':
-          values.push(date.pages_per_visit * date.visits);
+          values.push(dailyValues.pages_per_visit * dailyValues.visits);
           break;
         case 'total_visits_duration':
-          values.push(date.average_visit_duration * date.visits);
+          values.push(dailyValues.average_visit_duration * dailyValues.visits);
           break;
         case 'bounced_visits':
-          values.push(date.bounce_rate * date.visits);
+          values.push(dailyValues.bounce_rate * dailyValues.visits);
           break;
         case 'date':
           values.push(date.replace(/-/g, ''));
@@ -182,21 +187,23 @@ function buildTabularData(data, dataSchema) {
       requestedData.push({ values: values });
     });
 
-    data[dom].mobile.forEach(function(date) {
+    // Mobile Web visits & engagement
+    Object.keys(data[dom].mobile).forEach(function(date) {
+      var dailyValues = data[dom].mobile[date];
       var values = [];
       dataSchema.forEach(function (field) {
         switch (field.name) {
         case 'visits':
-          values.push(date.visits);
+          values.push(dailyValues.visits);
           break;
         case 'total_page_views':
-          values.push(date.pages_per_visit * date.visits);
+          values.push(dailyValues.pages_per_visit * dailyValues.visits);
           break;
         case 'total_visits_duration':
-          values.push(date.average_visit_duration * date.visits);
+          values.push(dailyValues.average_visit_duration * dailyValues.visits);
           break;
         case 'bounced_visits':
-          values.push(date.bounce_rate * date.visits);
+          values.push(dailyValues.bounce_rate * dailyValues.visits);
           break;
         case 'date':
           values.push(date.replace(/-/g, ''));
@@ -215,6 +222,7 @@ function buildTabularData(data, dataSchema) {
     });
   });
 
+  console.log('requested data', requestedData.slice(0, 3));
   return {
     schema: dataSchema,
     rows: requestedData
@@ -319,7 +327,7 @@ function fetchFromAPI(domain, country, apiKey) {
 function prepareSchema(request) {
   // Create schema for requested fields
   var fixedSchema = getSchema().schema;
-
+  console.log('fixed schema', JSON.stringify(fixedSchema));
   var dataSchema = request.fields.map(function (field) {
     for (var i = 0; i < fixedSchema.length; i++) {
       if (fixedSchema[i].name == field.name) {
