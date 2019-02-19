@@ -1,4 +1,4 @@
-/* global CacheService, UrlFetchApp */
+/* global CacheService, UrlFetchApp, DataStudioApp */
 
 if (typeof(require) !== 'undefined') {
   var DataCache = require('./DataCache.js')['default'];
@@ -12,102 +12,105 @@ function getAuthType() {
 
 // eslint-disable-next-line no-unused-vars
 function getConfig() {
-  var config = {
-    configParams: [
-      {
-        type: 'INFO',
-        name: 'instructions',
-        text: 'You can find your SimilarWeb API key or create a new one here (a SimilarWeb Pro account is needed): https://account.similarweb.com/#/api-management'
-      },
-      {
-        type: 'TEXTINPUT',
-        name: 'apiKey',
-        displayName: 'Your SimilarWeb API key',
-        helpText: 'Enter your 32-character SimilarWeb API key',
-        placeholder: '1234567890abcdef1234567890abcdef'
-      },
-      {
-        type: 'TEXTINPUT',
-        name: 'domains',
-        displayName: 'Domains',
-        helpText: 'Enter the name of up to 10 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)',
-        placeholder: 'cnn.com, bbc.com, nytimes.com'
-      },
-      {
-        type: 'TEXTINPUT',
-        name: 'country',
-        displayName: 'Country Code',
-        helpText: 'ISO 2-letter country code of the country (e.g. us, gb - world for Worldwide)',
-        placeholder: 'us'
-      }
-    ],
-    dataRangeRequired: true
-  };
-  return config;
+  var cc = DataStudioApp.createCommunityConnector();
+  var config = cc.getConfig();
+
+  config.newInfo()
+    .setId('instructions')
+    .setText('You can find your SimilarWeb API key or create a new one here (a SimilarWeb Pro account is needed): https://account.similarweb.com/#/api-management');
+
+  config.newTextInput()
+    .setId('apiKey')
+    .setName('Your SimilarWeb API key')
+    .setHelpText('Enter your 32-character SimilarWeb API key')
+    .setPlaceholder('1234567890abcdef1234567890abcdef');
+
+  config.newTextInput()
+    .setId('domains')
+    .setName('Domains')
+    .setHelpText('Enter the name of up to 10 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
+    .setPlaceholder('cnn.com, bbc.com, nytimes.com')
+    .setAllowOverride(true);
+
+  config.newTextInput()
+    .setId('country')
+    .setName('Country Code')
+    .setHelpText('ISO 2-letter country code of the country (e.g. us, gb - world for Worldwide)')
+    .setPlaceholder('us')
+    .setAllowOverride(true);
+
+  return config.build();
+}
+
+// eslint-disable-next-line no-unused-vars
+function getFields() {
+  var cc = DataStudioApp.createCommunityConnector();
+  var fields = cc.getFields();
+  var types = cc.FieldType;
+  var aggregations = cc.AggregationType;
+
+  fields.newDimension()
+    .setId('date')
+    .setName('Date')
+    .setType(types.YEAR_MONTH_DAY);
+
+  fields.newDimension()
+    .setId('domain')
+    .setName('Domain')
+    .setType(types.TEXT);
+
+  fields.newDimension()
+    .setId('device')
+    .setName('Device')
+    .setType(types.TEXT);
+
+  fields.newMetric()
+    .setId('visits')
+    .setName('Visits')
+    .setType(types.NUMBER)
+    .setAggregation(aggregations.SUM);
+
+  return fields;
 }
 
 // eslint-disable-next-line no-unused-vars
 function getSchema(request) {
-  return {
-    schema: [
-      {
-        name: 'visits',
-        dataType: 'NUMBER',
-        semantics: {
-          conceptType: 'METRIC',
-          semanticType: 'NUMBER',
-          isReaggregatable: true
-        },
-        defaultAggregationType: 'SUM'
-      },
-      {
-        name: 'date',
-        dataType: 'STRING',
-        semantics: {
-          conceptType: 'DIMENSION',
-          semanticType: 'YEAR_MONTH_DAY'
-        }
-      },
-      {
-        name: 'domain',
-        dataType: 'STRING',
-        semantics: {
-          conceptType: 'DIMENSION',
-        }
-      },
-      {
-        name: 'device',
-        dataType: 'STRING',
-        semantics: {
-          conceptType: 'DIMENSION',
-        }
-      }
-    ]
-  };
+  var fields = getFields().build();
+  return { schema: fields };
 }
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
-  var domains = request.configParams.domains.split(',').slice(0, 10).map(function(x) {return x.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();}),
-    apiKey = request.configParams.apiKey,
-    country = request.configParams.country,
-    data = { desktop: {}, mobile: {} };
+  var MAX_NB_DOMAINS = 10;
+  var country = request.configParams.country;
+  var apiKey = request.configParams.apiKey;
+  var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(domain) {
+    return domain.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();
+  });
 
-  for (var i in domains) {
-    var dom = domains[i];
+  var requestedFieldIDs = request.fields.map(function(field) {
+    return field.name;
+  });
+  var requestedFields = getFields().forIds(requestedFieldIDs);
 
-    var cache = new DataCache(CacheService.getUserCache(), apiKey, dom, country);
-    var domData = null;
-
-    domData = fetchFromCache(cache);
-    if (!domData) {
-      domData = fetchFromAPI(dom, country, apiKey);
-      setInCache(domData, cache);
+  // Fetch and parse data from API
+  var data = {};
+  domains.forEach(function (dom) {
+    if (dom) {
+      var cache = new DataCache(CacheService.getUserCache(), apiKey, dom, country);
+      var domData = fetchFromCache(cache);
+      if (!domData) {
+        domData = fetchFromAPI(dom, country, apiKey);
+        setInCache(domData, cache);
+      }
+      data[dom] = domData;
     }
-    data[dom] = domData;
-  }
+  });
 
-  return buildTabularData(data, prepareSchema(request));
+  return {
+    schema: requestedFields.build(),
+    rows: buildTabularData(requestedFields, data)
+  };
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -115,121 +118,99 @@ function isAdminUser() {
   return true;
 }
 
-function buildTabularData(data, dataSchema) {
-  var requestedData = [],
-    desktopData,
-    mobileData;
+function buildTabularData(requestedFields, data) {
+  var requestedData = [];
   Object.keys(data).forEach(function(dom) {
-    desktopData = data[dom].desktop;
-    if (desktopData && desktopData.visits) {
-      desktopData.visits.forEach(function(dailyVisits) {
-        var values = [];
-        dataSchema.forEach(function (field) {
-          switch (field.name) {
-          case 'visits':
-            values.push(dailyVisits.visits);
-            break;
-          case 'date':
-            values.push(dailyVisits.date.replace(/-/g, ''));
-            break;
-          case 'domain':
-            values.push(dom);
-            break;
-          case 'device':
-            values.push('Desktop');
-            break;
-          default:
-            values.push('');
-          }
-        });
-        requestedData.push({ values: values });
+    var desktopData = data[dom].desktop;
+    Object.keys(desktopData).forEach(function(date) {
+      var dailyValues = desktopData[date];
+      var row = [];
+
+      requestedFields.asArray().forEach(function (field) {
+        switch (field.getId()) {
+        case 'visits':
+          row.push(dailyValues.visits);
+          break;
+        case 'date':
+          row.push(date.replace(/-/g, ''));
+          break;
+        case 'domain':
+          row.push(dom);
+          break;
+        case 'device':
+          row.push('Desktop');
+          break;
+        default:
+          row.push('');
+        }
       });
-    }
-    mobileData = data[dom].mobile;
-    if (mobileData && mobileData.visits) {
-      mobileData.visits.forEach(function(dailyVisits) {
-        var values = [];
-        dataSchema.forEach(function (field) {
-          switch (field.name) {
-          case 'visits':
-            values.push(dailyVisits.visits);
-            break;
-          case 'date':
-            values.push(dailyVisits.date.replace(/-/g, ''));
-            break;
-          case 'domain':
-            values.push(dom);
-            break;
-          case 'device':
-            values.push('Mobile Web');
-            break;
-          default:
-            values.push('');
-          }
-        });
-        requestedData.push({ values: values });
+      requestedData.push({ values: row });
+    });
+
+    var mobileData = data[dom].desktop;
+    Object.keys(mobileData).forEach(function(date) {
+      var dailyValues = mobileData[date];
+      var row = [];
+
+      requestedFields.asArray().forEach(function (field) {
+        switch (field.name) {
+        case 'visits':
+          row.push(dailyValues.visits);
+          break;
+        case 'date':
+          row.push(date.replace(/-/g, ''));
+          break;
+        case 'domain':
+          row.push(dom);
+          break;
+        case 'device':
+          row.push('Desktop');
+          break;
+        default:
+          row.push('');
+        }
       });
-    }
+      requestedData.push({ values: row });
+    });
   });
 
-  return {
-    schema: dataSchema,
-    rows: requestedData
-  };
+  return requestedData;
 }
 
 function fetchFromAPI(domain, country, apiKey) {
-  var result = {},
-    response;
+  var result = { desktop: {}, mobile: {} };
+
+  var params = {
+    api_key: apiKey,
+    country: country,
+    main_domain_only: 'false',
+    show_verified: 'false'
+  };
 
   // Fetch and parse data from API
-  var urlDesktop = [
-    'https://api.similarweb.com/v1/website/',
-    domain,
-    '/traffic-and-engagement/visits-full',
-    '?api_key=', apiKey,
-    '&country=', country,
-    '&main_domain_only=false',
-    '&show_verified=false'
-  ].join('');
+  var desktopVisits = httpGet('https://api.similarweb.com/v1/website/' + domain + '/traffic-and-engagement/visits-full', params);
+  if (desktopVisits && desktopVisits.visits) {
+    desktopVisits.visits.forEach(function(day) {
+      var date = day.date;
+      if (!result.desktop.hasOwnProperty(date)) {
+        result.desktop[date] = {};
+      }
+      result.desktop[date].visits = day.visits;
+    });
+  }
 
-  console.log('Fetching', urlDesktop.replace('?api_key=' + apiKey, '?api_key=xxxxxxxxxxxxxxxx' + apiKey.slice(-1 * (apiKey.length - 26))));
-  response = UrlFetchApp.fetch(urlDesktop, { 'muteHttpExceptions': true });
-  console.log('Response', response);
-
-  result.desktop = JSON.parse(response);
-
-  var urlMobile = [
-    'https://api.similarweb.com/v2/website/',
-    domain,
-    '/mobile-web/visits-full',
-    '?api_key=', apiKey,
-    '&country=', country,
-    '&main_domain_only=false',
-    '&show_verified=false'
-  ].join('');
-
-  console.log('Fetching', urlMobile.replace('?api_key=' + apiKey, '?api_key=xxxxxxxxxxxxxxxx' + apiKey.slice(-1 * (apiKey.length - 26))));
-  response = UrlFetchApp.fetch(urlMobile, { 'muteHttpExceptions': true });
-  console.log('Response', response);
-  result.mobile = JSON.parse(response);
+  var mobileVisits = httpGet('https://api.similarweb.com/v2/website/' + domain + '/mobile-web/visits-full', params);
+  if (mobileVisits && mobileVisits.visits) {
+    mobileVisits.visits.forEach(function(day) {
+      var date = day.date;
+      if (!result.mobile.hasOwnProperty(date)) {
+        result.mobile[date] = {};
+      }
+      result.mobile[date].visits = day.visits;
+    });
+  }
 
   return result;
-}
-
-function prepareSchema(request) {
-  // Create schema for requested fields
-  var fixedSchema = getSchema().schema;
-
-  var dataSchema = request.fields.map(function (field) {
-    for (var i = 0; i < fixedSchema.length; i++) {
-      if (fixedSchema[i].name == field.name) {
-        return fixedSchema[i];
-      }
-    }
-  });
-
-  return dataSchema;
 }
 
 function fetchFromCache(cache) {
@@ -253,4 +234,28 @@ function setInCache(data, cache) {
   } catch (e) {
     console.log('Error when storing in cache', e);
   }
+}
+
+/**
+ * Send a HTTP GET request to an API endpoint and return the results in a JavaScript object
+ *
+ * @param {String} url - url to the desired API endpoint
+ * @param {object} params - object that contains the URL parameters and their values
+ * @return {object} Results returned by the API, or null if the API call wasn't successful
+ */
+function httpGet(url, params) {
+  if (typeof params === 'undefined') {
+    params = {};
+  }
+
+  var urlParams = Object.keys(params).map(function(k) {return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+  var fullUrl = url + (urlParams.length > 0 ? '?' + urlParams : '');
+
+  console.log('Fetching', fullUrl.replace(/api_key=[0-9a-f]{26}/gi, 'api_key=xxxxxxxxxxx'));
+  var response = UrlFetchApp.fetch(fullUrl, { 'muteHttpExceptions': true });
+  console.log('Response', response);
+
+  var data = JSON.parse(response);
+
+  return data;
 }
