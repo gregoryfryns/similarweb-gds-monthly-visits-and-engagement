@@ -62,13 +62,18 @@ function getFields() {
   fields.newDimension()
     .setId('device')
     .setName('Device')
+    .setDescription('Device type: Desktop or Mobile Web')
     .setType(types.TEXT);
 
   fields.newMetric()
     .setId('visits')
     .setName('Visits')
+    .setDescription('SimilarWeb estimated number of visits')
     .setType(types.NUMBER)
     .setAggregation(aggregations.SUM);
+
+  fields.setDefaultDimension('domain');
+  fields.setDefaultMetric('visits');
 
   return fields;
 }
@@ -147,13 +152,13 @@ function buildTabularData(requestedFields, data) {
       requestedData.push({ values: row });
     });
 
-    var mobileData = data[dom].desktop;
+    var mobileData = data[dom].mobile;
     Object.keys(mobileData).forEach(function(date) {
       var dailyValues = mobileData[date];
       var row = [];
 
       requestedFields.asArray().forEach(function (field) {
-        switch (field.name) {
+        switch (field.getId()) {
         case 'visits':
           row.push(dailyValues.visits);
           break;
@@ -164,7 +169,7 @@ function buildTabularData(requestedFields, data) {
           row.push(dom);
           break;
         case 'device':
-          row.push('Desktop');
+          row.push('Mobile Web2');
           break;
         default:
           row.push('');
@@ -190,23 +195,23 @@ function fetchFromAPI(domain, country, apiKey) {
   // Fetch and parse data from API
   var desktopVisits = httpGet('https://api.similarweb.com/v1/website/' + domain + '/traffic-and-engagement/visits-full', params);
   if (desktopVisits && desktopVisits.visits) {
-    desktopVisits.visits.forEach(function(day) {
-      var date = day.date;
+    desktopVisits.visits.forEach(function(dailyValues) {
+      var date = dailyValues.date;
       if (!result.desktop.hasOwnProperty(date)) {
         result.desktop[date] = {};
       }
-      result.desktop[date].visits = day.visits;
+      result.desktop[date].visits = dailyValues.visits;
     });
   }
 
   var mobileVisits = httpGet('https://api.similarweb.com/v2/website/' + domain + '/mobile-web/visits-full', params);
   if (mobileVisits && mobileVisits.visits) {
-    mobileVisits.visits.forEach(function(day) {
-      var date = day.date;
+    mobileVisits.visits.forEach(function(dailyValues) {
+      var date = dailyValues.date;
       if (!result.mobile.hasOwnProperty(date)) {
         result.mobile[date] = {};
       }
-      result.mobile[date].visits = day.visits;
+      result.mobile[date].visits = dailyValues.visits;
     });
   }
 
@@ -240,7 +245,7 @@ function setInCache(data, cache) {
  * Send a HTTP GET request to an API endpoint and return the results in a JavaScript object
  *
  * @param {String} url - url to the desired API endpoint
- * @param {object} params - object that contains the URL parameters and their values
+ * @param {?object} params - object that contains the URL parameters and their values
  * @return {object} Results returned by the API, or null if the API call wasn't successful
  */
 function httpGet(url, params) {
