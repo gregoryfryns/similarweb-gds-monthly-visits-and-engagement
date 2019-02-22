@@ -43,11 +43,11 @@ function getConfig() {
 }
 
 // eslint-disable-next-line no-unused-vars
-function getFields() {
+function getConnectorFields() {
   var cc = DataStudioApp.createCommunityConnector();
   var fields = cc.getFields();
   var types = cc.FieldType;
-  //var aggregations = cc.AggregationType;
+  // var aggregations = cc.AggregationType;
 
   fields.newDimension()
     .setId('date')
@@ -115,6 +115,12 @@ function getFields() {
     .setType(types.PERCENT)
     .setFormula('sum($bounced_visits)/sum($visits)');
 
+  fields.newMetric()
+    .setId('unique_visitors')
+    .setName('Monthly Unique Visitors')
+    .setDescription('Amount of unique users that visited the domain within a month')
+    .setType(types.NUMBER);
+
   fields.setDefaultDimension('domain');
   fields.setDefaultMetric('visits');
 
@@ -123,15 +129,15 @@ function getFields() {
 
 // eslint-disable-next-line no-unused-vars
 function getSchema(request) {
-  var fields = getFields().build();
+  var fields = getConnectorFields().build();
   return { schema: fields };
 }
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
   var MAX_NB_DOMAINS = 10;
-  var country = request.configParams.country;
-  var apiKey = request.configParams.apiKey;
+  var country = request.configParams.country.trim().toLowerCase();
+  var apiKey = request.configParams.apiKey.trim().toLowerCase();
   var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(domain) {
     return domain.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();
   });
@@ -140,55 +146,67 @@ function getData(request) {
     return field.name;
   });
   console.log('requested fields ids', JSON.stringify(requestedFieldIDs));
-  var requestedFields = getFields().forIds(requestedFieldIDs);
+  var requestedFields = getConnectorFields().forIds(requestedFieldIDs);
 
   // Prepare data to be fetched
   var endpoints = {
     desktopVisits: {
-      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/visits-full',
+      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/visits',
       objectName: 'visits',
       device: 'desktop',
       isRequired: false
     },
     mobileVisits: {
-      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/visits-full',
+      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/visits',
       objectName: 'visits',
       device: 'mobile',
       isRequired: false
     },
     desktopPagesPerVisit: {
-      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/pages-per-visit-full',
+      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/pages-per-visit',
       objectName: 'pages_per_visit',
       device: 'desktop',
       isRequired: false
     },
     mobilePagesPerVisit: {
-      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/pages-per-visit-full',
+      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/pages-per-visit',
       objectName: 'pages_per_visit',
       device: 'mobile',
       isRequired: false
     },
     desktopAvgVisitDuration: {
-      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/average-visit-duration-full',
+      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/average-visit-duration',
       objectName: 'average_visit_duration',
       device: 'desktop',
       isRequired: false
     },
     mobileAvgVisitDuration: {
-      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/average-visit-duration-full',
+      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/average-visit-duration',
       objectName: 'average_visit_duration',
       device: 'mobile',
       isRequired: false
     },
     desktopBounceRate: {
-      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/bounce-rate-full',
+      url: 'https://api.similarweb.com/v1/website/xxx/traffic-and-engagement/bounce-rate',
       objectName: 'bounce_rate',
       device: 'desktop',
       isRequired: false
     },
     mobileBounceRate: {
-      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/bounce-rate-full',
+      url: 'https://api.similarweb.com/v2/website/xxx/mobile-web/bounce-rate',
       objectName: 'bounce_rate',
+      device: 'mobile',
+      isRequired: false
+    },
+    desktopUniqueVisitors: {
+      url: 'https://api.similarweb.com/v1/website/xxx/unique-visitors/desktop_mau',
+      objectName: 'unique_visitors',
+      device: 'desktop',
+      isRequired: false
+    },
+    mobileUniqueVisitors: {
+      url: 'https://api.similarweb.com/v1/website/xxx/unique-visitors/mobileweb_mau',
+      objectName: 'unique_visitors',
       device: 'mobile',
       isRequired: false
     }
@@ -218,6 +236,9 @@ function getData(request) {
       endpoints.mobileVisits.isRequired = true;
       endpoints.mobileBounceRate.isRequired = true;
       break;
+    case 'unique_visitors':
+      endpoints.desktopUniqueVisitors.isRequired = true;
+      endpoints.mobileUniqueVisitors.isRequired = true;
     }
   });
 
@@ -285,6 +306,9 @@ function buildRow(date, dom, deviceName, requestedFields, values) {
     case 'bounced_visits':
       row.push(values.visits * values.bounce_rate);
       break;
+    case 'unique_visitors':
+      row.push(values.unique_visitors);
+      break;
     case 'date':
       row.push(date.replace(/-/g, ''));
       break;
@@ -312,29 +336,22 @@ function buildRow(date, dom, deviceName, requestedFields, values) {
  */
 function collectData(endpoints, domain, country, apiKey) {
   var result = { desktop: {}, mobile: {} };
-
-  var params = {
-    api_key: apiKey,
-    country: country,
-    domain: domain,
-    main_domain_only: 'false',
-    show_verified: 'false'
-  };
+  var params = getApiParams(apiKey, country, domain);
 
   Object.keys(endpoints).forEach(function(epName) {
     var ep = endpoints[epName];
     // Retrieve data from cache or API
-    if (ep.isRequired) {
-      var data = retrieveOrGet(ep.url, params);
+    if (ep.isRequired && params[ep.device]) {
+      var data = retrieveOrGet(ep.url, params[ep.device]);
       if (data && data[ep.objectName]) {
-        data[ep.objectName].forEach(function(dailyValues) {
-          var date = dailyValues.date;
+        data[ep.objectName].forEach(function(monthlyValues) {
+          var date = monthlyValues.date;
 
           var deviceResult = result[ep.device];
           if (!deviceResult.hasOwnProperty(date)) {
             deviceResult[date] = {};
           }
-          deviceResult[date][ep.objectName] = dailyValues[ep.objectName];
+          deviceResult[date][ep.objectName] = monthlyValues[ep.objectName];
         });
       }
     }
@@ -398,4 +415,42 @@ function httpGet(url, params) {
   var data = JSON.parse(response);
 
   return data;
+}
+
+function getApiParams(apiKey, country, domain) {
+  var capData = httpGet('https://api.similarweb.com/capabilities', { api_key: apiKey });
+
+  var params = { desktop: null, mobile: null };
+
+  if (capData && capData.remaining_hits && capData.web_desktop_data && capData.web_mobile_data) {
+    // If the selected country is available for that API key (desktop)
+    if (capData.web_desktop_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
+      params.desktop = {
+        api_key: apiKey,
+        country: country,
+        domain: domain,
+        start_date: capData.web_desktop_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-'),
+        end_date: capData.web_desktop_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-'),
+        granularity: 'monthly',
+        main_domain_only: 'false',
+        show_verified: 'false'
+      };
+    }
+
+    // If the selected country is available for that API key (mobile web)
+    if (capData.web_mobile_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
+      params.mobile = {
+        api_key: apiKey,
+        country: country,
+        domain: domain,
+        start_date: capData.web_mobile_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-'),
+        end_date: capData.web_mobile_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-'),
+        granularity: 'monthly',
+        main_domain_only: 'false',
+        show_verified: 'false'
+      };
+    }
+  }
+
+  return params;
 }

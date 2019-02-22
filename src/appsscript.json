@@ -1,11 +1,11 @@
 {
     "dataStudio": {
-      "name": "SimilarWeb Visits & Engagement",
+      "name": "SimilarWeb Monthly Visits & Engagement",
       "logoUrl": "http://www.comparatif-logiciels.fr/wp-content/uploads/2016/05/similarweb_comparatif_logiciels_saas-1.png",
       "company": "Similarweb",
       "companyUrl": "https://www.similarweb.com/",
       "addonUrl": "https://www.similarweb.com/",
       "supportUrl": "https://www.similarweb.com/",
-      "description": "View the visits, bounce rate, pages per visit & average visit duration for up to 10 domains"
+      "description": "View the visits, unique visitors, bounce rate, pages per visit & average visit duration for up to 10 domains"
     }
   }

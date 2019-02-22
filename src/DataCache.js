@@ -35,6 +35,12 @@ DataCache.prototype.buildCacheKey = function(url, params) {
   var parString = Object.keys(par).sort().map(function(x) {return x + '=' + par[x];}).join('&');
 
   // TODO: make sure the key doesn't exceed 245 (= 250 - 5) characters (https://developers.google.com/apps-script/reference/cache/cache)
+  parString = parString.replace('country=', 'c=')
+    .replace('domain=', 'd=')
+    .replace('end_date=', 'ed=')
+    .replace('start_date=', 'sd=')
+    .replace('granularity=', 'g=')
+    .replace('main_domain_only=', 'md=');
   return url.replace(/^https:\/\/api\.similarweb\.com\/.*\/website\/xxx\//, '') + '?' + parString;
 };
 
