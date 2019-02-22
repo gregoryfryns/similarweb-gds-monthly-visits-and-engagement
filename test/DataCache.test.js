@@ -32,19 +32,75 @@ function generateData(arraySize) {
   return text;
 }
 
-test('testCache', () => {
+test('Test Cache', () => {
   var cacheService = new UserCache();
-  var cache = new DataCache(cacheService, '0123456789abcdef0123456789abcdef', 'toto.com', 'us');
+
+  var url = 'https://api.similarweb.com/v1/website/xxx/total-traffic-and-engagement/visits-full';
+  var params = {
+    api_key: '0123456789abcdef0123456789abcdef',
+    country: 'world',
+    domain: 'toto.com',
+    main_domain_only: 'false',
+    show_verified: 'false',
+    format: 'json'
+  };
+
+  var cache = new DataCache(cacheService, url, params);
 
   cache.set('my_data');
   expect(cache.get()).toBe('my_data');
 });
 
-test('testCacheChunks', () => {
+test('Test Cache Chunks', () => {
   var cacheService = new UserCache();
+
+  var url = 'https://api.similarweb.com/v1/website/xxx/total-traffic-and-engagement/visits-full';
+  var params = {
+    api_key: '0123456789abcdef0123456789abcdef',
+    country: 'world',
+    domain: 'toto.com',
+    main_domain_only: 'false',
+    show_verified: 'false',
+    format: 'json'
+  };
+
   var data = generateData(Math.max((3 * DataCache.MAX_CACHE_SIZE) - 10), 1);
-  var cache = new DataCache(cacheService, '0123456789abcdef0123456789abcdef', 'bla.com', 'us');
+  var cache = new DataCache(cacheService, url, params);
 
   cache.set(data);
   expect(cache.get()).toBe(data);
+});
+
+test('No API key in cache key', () => {
+  var cacheService = new UserCache();
+
+  var url = 'https://api.similarweb.com/v1/website/xxx/total-traffic-and-engagement/visits-full';
+  var params = {
+    api_key: '0123456789abcdef0123456789abcdef',
+    country: 'world',
+    domain: 'toto.com',
+    main_domain_only: 'false',
+    show_verified: 'false'
+  };
+
+  var cache = new DataCache(cacheService, url, params);
+  var reApiKey = /api_key=[0-9a-f]{32}/gi;
+  expect(reApiKey.test(cache.cacheKey)).toBeFalsy();
+});
+
+test('No show_verified in cache key', () => {
+  var cacheService = new UserCache();
+
+  var url = 'https://api.similarweb.com/v1/website/xxx/total-traffic-and-engagement/visits-full';
+  var params = {
+    api_key: '0123456789abcdef0123456789abcdef',
+    country: 'world',
+    domain: 'toto.com',
+    main_domain_only: 'false',
+    show_verified: 'false'
+  };
+
+  var cache = new DataCache(cacheService, url, params);
+  var reApiKey = /show_verified=(?:true|false)/gi;
+  expect(reApiKey.test(cache.cacheKey)).toBeFalsy();
 });

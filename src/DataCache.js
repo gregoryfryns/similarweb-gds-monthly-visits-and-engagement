@@ -3,15 +3,14 @@
  * More info on caching: https://developers.google.com/apps-script/reference/cache/cache
  *
  * @param {object} cacheService - GDS caching service
- * @param {String} endpoint - API endpoint used
- * @param {String} domain - domain name
- * @param {String} country - country code
+ * @param {String} url - API endpoint URL
+ * @param {object} params - API parameters
  *
  * @return {object} DataCache.
  */
-function DataCache(cacheService, apiKey, domain, country) {
+function DataCache(cacheService, url, params) {
   this.service = cacheService;
-  this.cacheKey = this.buildCacheKey(apiKey, domain, country);
+  this.cacheKey = this.buildCacheKey(url, params);
 
   return this;
 }
@@ -27,8 +26,16 @@ DataCache.MAX_CACHE_SIZE = 100 * 1024;
  *
  * @return {String} cache key
  */
-DataCache.prototype.buildCacheKey = function(apiKey, domain, country) {
-  return apiKey + '_' + domain + '_' + country;
+DataCache.prototype.buildCacheKey = function(url, params) {
+  var par = JSON.parse(JSON.stringify(params));
+  delete par['api_key'];
+  delete par['format'];
+  delete par['show_verified'];
+
+  var parString = Object.keys(par).sort().map(function(x) {return x + '=' + par[x];}).join('&');
+
+  // TODO: make sure the key doesn't exceed 245 (= 250 - 5) characters (https://developers.google.com/apps-script/reference/cache/cache)
+  return url.replace(/^https:\/\/api\.similarweb\.com\/.*\/website\/xxx\//, '') + '?' + parString;
 };
 
 /**
