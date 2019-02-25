@@ -52,7 +52,7 @@ function getConnectorFields() {
   fields.newDimension()
     .setId('date')
     .setName('Date')
-    .setType(types.YEAR_MONTH_DAY);
+    .setType(types.YEAR_MONTH);
 
   fields.newDimension()
     .setId('domain')
@@ -310,7 +310,7 @@ function buildRow(date, dom, deviceName, requestedFields, values) {
       row.push(values.unique_visitors);
       break;
     case 'date':
-      row.push(date.replace(/-/g, ''));
+      row.push(date.split('-').slice(0, 2).join(''));
       break;
     case 'domain':
       row.push(dom);
