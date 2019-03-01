@@ -243,8 +243,16 @@ function getData(request) {
   });
 
   var data = {};
+  var params = generateApiParams(apiKey, country);
+
   domains.forEach(function(domain) {
-    data[domain] = collectData(endpoints, domain, country, apiKey);
+    if (params.desktop) {
+      params.desktop['domain'] = domain;
+    }
+    if (params.mobile) {
+      params.mobile['domain'] = domain;
+    }
+    data[domain] = collectData(endpoints, params);
   });
 
   return {
@@ -339,9 +347,8 @@ function buildRow(date, dom, deviceName, requestedFields, values) {
  * @param {string} apiKey - SimilarWeb API key
  * @return {object} - Results
  */
-function collectData(endpoints, domain, country, apiKey) {
+function collectData(endpoints, params) {
   var result = { desktop: {}, mobile: {} };
-  var params = getApiParams(apiKey, country, domain);
 
   Object.keys(endpoints).forEach(function(epName) {
     var ep = endpoints[epName];
@@ -422,38 +429,45 @@ function httpGet(url, params) {
   return data;
 }
 
-function getApiParams(apiKey, country, domain) {
-  var capData = httpGet('https://api.similarweb.com/capabilities', { api_key: apiKey });
-
+/**
+ * Generate an object with 2 objects containing the API parameters to be used for the SW desktop
+ * and mobile web API requests respectively
+ *
+ * @param {string} apiKey - SimilarWeb API Key
+ * @param {string} country - 2-letter ISO country code of the desired country or 'world' for Worldwide
+ * @param {?string} domain - desired domain
+ * @return {object} - Object containing two objects: desktop & mobile with the API parameters to specific
+ *   to desktop and mobile web requests respectively
+ */
+function generateApiParams(apiKey, country, domain) {
+  var capData = retrieveOrGet('https://api.similarweb.com/capabilities', { api_key: apiKey });
   var params = { desktop: null, mobile: null };
 
   if (capData && capData.remaining_hits && capData.web_desktop_data && capData.web_mobile_data) {
+    var paramsCommon = {
+      api_key: apiKey,
+      country: country,
+      domain: domain,
+      granularity: 'monthly',
+      main_domain_only: 'false',
+      show_verified: 'false'
+    };
+    if (domain !== undefined) {
+      paramsCommon['domain'] = domain;
+    }
+
     // If the selected country is available for that API key (desktop)
     if (capData.web_desktop_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
-      params.desktop = {
-        api_key: apiKey,
-        country: country,
-        domain: domain,
-        start_date: capData.web_desktop_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-'),
-        end_date: capData.web_desktop_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-'),
-        granularity: 'monthly',
-        main_domain_only: 'false',
-        show_verified: 'false'
-      };
+      params.desktop = JSON.parse(JSON.stringify(paramsCommon)); // clone paramsCommon object
+      params.desktop['start_date'] = capData.web_desktop_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-');
+      params.desktop['end_date'] = capData.web_desktop_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-');
     }
 
     // If the selected country is available for that API key (mobile web)
     if (capData.web_mobile_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
-      params.mobile = {
-        api_key: apiKey,
-        country: country,
-        domain: domain,
-        start_date: capData.web_mobile_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-'),
-        end_date: capData.web_mobile_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-'),
-        granularity: 'monthly',
-        main_domain_only: 'false',
-        show_verified: 'false'
-      };
+      params.mobile = JSON.parse(JSON.stringify(paramsCommon)); // clone paramsCommon object
+      params.mobile['start_date'] = capData.web_mobile_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-');
+      params.mobile['end_date'] = capData.web_mobile_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-');
     }
   }
 
