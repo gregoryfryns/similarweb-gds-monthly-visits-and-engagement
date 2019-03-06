@@ -47,7 +47,7 @@ function getConnectorFields() {
   var cc = DataStudioApp.createCommunityConnector();
   var fields = cc.getFields();
   var types = cc.FieldType;
-  // var aggregations = cc.AggregationType;
+  var aggregations = cc.AggregationType;
 
   fields.newDimension()
     .setId('date')
@@ -71,13 +71,17 @@ function getConnectorFields() {
     .setId('visits')
     .setName('Visits')
     .setDescription('SimilarWeb estimated number of visits')
-    .setType(types.NUMBER);
+    .setType(types.NUMBER)
+    .setIsReaggregatable(true)
+    .setAggregation(aggregations.SUM);
 
   fields.newMetric()
     .setId('page_views')
     .setName('Total Page Views')
     .setDescription('SimilarWeb estimated number of pages views')
     .setType(types.NUMBER)
+    .setIsReaggregatable(true)
+    .setAggregation(aggregations.SUM)
     .setIsHidden(true);
 
   fields.newMetric()
@@ -85,6 +89,7 @@ function getConnectorFields() {
     .setName('Pages per Visit')
     .setDescription('Average number of pages visited per session')
     .setType(types.NUMBER)
+    .setIsReaggregatable(false)
     .setFormula('sum($page_views)/sum($visits)');
 
   fields.newMetric()
@@ -92,6 +97,8 @@ function getConnectorFields() {
     .setName('Total Visits Duration')
     .setDescription('SimilarWeb estimated amount of time spent on domain')
     .setType(types.NUMBER)
+    .setIsReaggregatable(true)
+    .setAggregation(aggregations.SUM)
     .setIsHidden(true);
 
   fields.newMetric()
@@ -99,6 +106,7 @@ function getConnectorFields() {
     .setName('Avg. Visit Duration')
     .setDescription('Average time spent per visit, in seconds')
     .setType(types.DURATION)
+    .setIsReaggregatable(false)
     .setFormula('sum($visits_duration)/sum($visits)');
 
   fields.newMetric()
@@ -106,6 +114,8 @@ function getConnectorFields() {
     .setName('Bounced Visits')
     .setDescription('SimilarWeb estimated number of bounced visits')
     .setType(types.NUMBER)
+    .setIsReaggregatable(true)
+    .setAggregation(aggregations.SUM)
     .setIsHidden(true);
 
   fields.newMetric()
@@ -113,13 +123,16 @@ function getConnectorFields() {
     .setName('Bounce rate')
     .setDescription('Rate of visits for which no other interaction has been detected 30 minutes after the user first accessed the page')
     .setType(types.PERCENT)
+    .setIsReaggregatable(false)
     .setFormula('sum($bounced_visits)/sum($visits)');
 
   fields.newMetric()
     .setId('unique_visitors')
     .setName('Monthly Unique Visitors')
     .setDescription('Amount of unique users that visited the domain within a month')
-    .setType(types.NUMBER);
+    .setType(types.NUMBER)
+    .setIsReaggregatable(true)
+    .setAggregation(aggregations.SUM);
 
   fields.setDefaultDimension('domain');
   fields.setDefaultMetric('visits');
