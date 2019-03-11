@@ -2,6 +2,7 @@
 
 if (typeof(require) !== 'undefined') {
   var retrieveOrGet = require('./utils.js')['retrieveOrGet'];
+  var dateToYearMonth = require('./utils.js')['dateToYearMonth'];
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -415,15 +416,15 @@ function generateApiParams(apiKey, country, domain) {
     // If the selected country is available for that API key (desktop)
     if (capData.web_desktop_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
       params.desktop = JSON.parse(JSON.stringify(paramsCommon)); // clone paramsCommon object
-      params.desktop['start_date'] = capData.web_desktop_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-');
-      params.desktop['end_date'] = capData.web_desktop_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-');
+      params.desktop['start_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.start_date);
+      params.desktop['end_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.end_date);
     }
 
     // If the selected country is available for that API key (mobile web)
     if (capData.web_mobile_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
       params.mobile = JSON.parse(JSON.stringify(paramsCommon)); // clone paramsCommon object
-      params.mobile['start_date'] = capData.web_mobile_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-');
-      params.mobile['end_date'] = capData.web_mobile_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-');
+      params.mobile['start_date'] = dateToYearMonth(capData.web_mobile_data.snapshot_interval.start_date);
+      params.mobile['end_date'] = dateToYearMonth(capData.web_mobile_data.snapshot_interval.end_date);
     }
   }
 
