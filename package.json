@@ -5,7 +5,7 @@
   "main": "Code.js",
   "scripts": {
     "clasp-login": "clasp login",
-    "new-script": "rimraf .clasp.json;clasp create --type standalone --title \"SimilarWeb Connector - Monthly Visits and Engagement\";npm run push:force;npm run open",
+    "new-script": "cd src;rimraf .clasp.json;clasp create --type standalone --title \"SimilarWeb Connector - Monthly Visits and Engagement\";clasp push -f;npm run open;cd -",
     "push": "cd src;clasp push;cd -",
     "push:force": "cd src;clasp push -f;cd -",
     "open": "cd src;clasp open;cd -",
