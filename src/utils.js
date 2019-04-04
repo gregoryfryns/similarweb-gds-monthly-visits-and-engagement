@@ -183,20 +183,20 @@ function httpGetAll(urls, retries) {
     else {
       retry.push(urls[i]);
     }
-
-    if (retry.length > 0 && retries > 0) {
-      if (retries > 0) {
-        console.warn('HTTP Get failed for urls: ', JSON.stringify(retry), ' - ', retries, ' attempts left');
-        Utilities.sleep(1000); // wait 1s before retrying
-        httpGetAll(retry, retries - 1).forEach(function(x, j) {
-          resultsDict[retry[j]] = x;
-        });
-      }
-      else {
-        console.error('Could not retrieve data from API for urls: ', JSON.stringify(retry));
-      }
-    }
   });
+
+  if (retry.length > 0) {
+    if (retries > 0) {
+      console.warn('HTTP Get failed for urls: ', JSON.stringify(retry), ' - ', retries, ' attempts left');
+      Utilities.sleep(1000); // wait 1s before retrying
+      httpGetAll(retry, retries - 1).forEach(function(x, j) {
+        resultsDict[retry[j]] = x;
+      });
+    }
+    else {
+      console.error('Could not retrieve data from API for urls: ', JSON.stringify(retry));
+    }
+  }
 
   var result = urls.map(function(url) { return resultsDict.hasOwnProperty(url) ? resultsDict[url] : null; });
 
