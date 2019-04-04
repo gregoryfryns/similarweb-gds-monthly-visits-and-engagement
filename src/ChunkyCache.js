@@ -1,5 +1,5 @@
-/** @const - 6 hours, Google's max */
-ChunkyCache.REQUEST_CACHING_TIME = 21600;
+/** @const - 6 hours (Google's max) minus 10s */
+ChunkyCache.DEFAULT_TIMEOUT = 21590;
 
 /** @const - 100 KB */
 ChunkyCache.MAX_CACHE_SIZE = 100 * 1024;
