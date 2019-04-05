@@ -1,7 +1,7 @@
 /* global DataStudioApp, Session, PropertiesService */
 
 if (typeof(require) !== 'undefined') {
-  var [retrieveOrGet, httpGet, dateToYearMonth] = require('./utils.js')['retrieveOrGet', 'httpGet', 'dateToYearMonth'];
+  var [httpGet, retrieveOrGet, retrieveOrGetAll, dateToYearMonth, buildUrl, cleanDomain] = require('./utils.js')['httpGet', 'retrieveOrGet', 'retrieveOrGetAll', 'dateToYearMonth', 'buildUrl', 'cleanDomain'];
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -116,6 +116,11 @@ function getConnectorFields() {
   fields.newDimension()
     .setId('date')
     .setName('Date')
+    .setType(types.YEAR_MONTH_DAY);
+
+  fields.newDimension()
+    .setId('year_month')
+    .setName('Date (Year & Month)')
     .setType(types.YEAR_MONTH);
 
   fields.newDimension()
@@ -218,9 +223,7 @@ function getData(request) {
   var apiKey = userProperties.getProperty('dscc.similarwebapi.key');
 
   var country = request.configParams.country.trim().toLowerCase();
-  var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(domain) {
-    return domain.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();
-  });
+  var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(cleanDomain);
 
   var requestedFieldIDs = request.fields.map(function(field) {
     return field.name;
@@ -322,31 +325,12 @@ function getData(request) {
     }
   });
 
-  var data = {};
-  var params = generateApiParams(apiKey, country);
-
-  domains.forEach(function(domain) {
-    if (params.desktop) {
-      params.desktop['domain'] = domain;
-    }
-    if (params.mobile) {
-      params.mobile['domain'] = domain;
-    }
-    data[domain] = collectData(endpoints, params);
-  });
+  var data = collectData(domains, apiKey, country, endpoints);
 
   return {
     schema: requestedFields.build(),
     rows: buildTabularData(requestedFields, data)
   };
-}
-
-// eslint-disable-next-line no-unused-vars
-function throwError (message, userSafe) {
-  if (userSafe) {
-    message = 'DS_USER:' + message;
-  }
-  throw new Error(message);
 }
 
 function buildTabularData(requestedFields, data) {
@@ -393,6 +377,9 @@ function buildRow(date, dom, deviceName, requestedFields, values) {
       row.push(values.unique_visitors);
       break;
     case 'date':
+      row.push(date.split('-').slice(0, 3).join(''));
+      break;
+    case 'year_month':
       row.push(date.split('-').slice(0, 2).join(''));
       break;
     case 'domain':
@@ -411,35 +398,54 @@ function buildRow(date, dom, deviceName, requestedFields, values) {
 /**
  * Creates an object with the results for the required endpoints
  *
- * @param {Set} endpoints - set of objects with endpoint details (url, object name, device type & isRequired boolean)
- * @param {string} domain - domain name
- * @param {string} country - country code
- * @param {string} apiKey - SimilarWeb API key
+ * @param {object} endpoints - Endpoint details (url, object name, device type & isRequired boolean)
+ * @param {string} domains - list of domains for which to pull the data
+ * @param {object} params - object containing the parameters for desktop & mobile HTTP calls
  * @return {object} - Results
  */
-function collectData(endpoints, params) {
-  var result = { desktop: {}, mobile: {} };
+function collectData(domains, apiKey, country, endpoints) {
+  var requiredEndpoints = Object.keys(endpoints).map(function(ep) { return endpoints[ep]; })
+    .filter(function(ep) { return ep.isRequired; });
 
-  Object.keys(endpoints).forEach(function(epName) {
-    var ep = endpoints[epName];
-    // Retrieve data from cache or API
-    if (ep.isRequired && params[ep.device]) {
-      var data = retrieveOrGet(ep.url, params[ep.device]);
-      if (data && data[ep.objectName]) {
-        data[ep.objectName].forEach(function(monthlyValues) {
-          var date = monthlyValues.date;
+  var apiRequests = [];
 
-          var deviceResult = result[ep.device];
-          if (!deviceResult.hasOwnProperty(date)) {
-            deviceResult[date] = {};
-          }
-          deviceResult[date][ep.objectName] = monthlyValues[ep.objectName];
-        });
+  var defaultParams = generateApiParams(apiKey, country);
+  domains.forEach(function(dom) {
+    requiredEndpoints.forEach(function(ep) {
+      var params = defaultParams[ep.device];
+      if (params) {
+        params['domain'] = dom;
+        apiRequests.push({ url: buildUrl(ep.url, params), domain: dom, device: ep.device, objectName: ep.objectName });
       }
+    });
+  });
+
+  var apiReplies = retrieveOrGetAll(apiRequests.map(function(req) { return req.url; }));
+
+  var results = {};
+  apiReplies.forEach(function(data, i) {
+    var req = apiRequests[i];
+    var dom = req.domain;
+    var device = req.device;
+    if (data && data[req.objectName]) {
+      if (!results.hasOwnProperty(dom)) {
+        results[dom] = {};
+      }
+      if (!results[dom].hasOwnProperty(device)) {
+        results[dom][device] = {};
+      }
+      var deviceResult = results[dom][device];
+      data[req.objectName].forEach(function(monthlyValues) {
+        var date = monthlyValues.date;
+        if (!deviceResult.hasOwnProperty(date)) {
+          deviceResult[date] = {};
+        }
+        deviceResult[date][req.objectName] = monthlyValues[req.objectName];
+      });
     }
   });
 
-  return result;
+  return results;
 }
 
 /**
@@ -460,7 +466,6 @@ function generateApiParams(apiKey, country, domain) {
     var paramsCommon = {
       api_key: apiKey,
       country: country,
-      domain: domain,
       granularity: 'monthly',
       main_domain_only: 'false',
       show_verified: 'false'

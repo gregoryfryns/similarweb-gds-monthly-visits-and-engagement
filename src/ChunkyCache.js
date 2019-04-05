@@ -64,14 +64,15 @@ ChunkyCache.prototype.get = function (key) {
     });
     if (chunks.every(function (c) { return c != null; })) {
       result = JSON.parse(chunks.join(''));
-      console.log('ChunkyCache: successfully retrieved data for key: ', key);
+      console.info('ChunkyCache: successfully retrieved data for key: ', key);
     }
     else {
       console.error('ChunkyCache: Missing chunk for key: ', key);
     }
   }
   else {
-    console.log('ChunkyCache: no data found for key: ', key);
+    console.info('ChunkyCache: no data found for key: ', key);
+    throw 'Key not found';
   }
 
   return result;
@@ -88,10 +89,12 @@ ChunkyCache.prototype.buildCacheKey = function(url, params) {
     var split = url.split('?');
     url = split[0];
     params = {};
-    split[1].split('&').forEach(function(p) {
-      var keyVal = p.split('=');
-      params[keyVal[0]] = keyVal[1];
-    });
+    if (split[1]) {
+      split[1].split('&').forEach(function(p) {
+        var keyVal = p.split('=');
+        params[keyVal[0]] = keyVal[1];
+      });
+    }
   }
 
   function shortenKey(key) {

@@ -1,5 +1,6 @@
 var dateToYearMonth = require('../src/utils.js')['dateToYearMonth'];
 var buildUrl = require('../src/utils.js')['buildUrl'];
+var cleanDomain = require('../src/utils.js')['cleanDomain'];
 
 test('Date to YYYY-MM', () => {
   var date = '2018-01-03';
@@ -29,4 +30,10 @@ test('Build URL without parameters', () => {
 
   var fullUrl = buildUrl(url);
   expect(fullUrl).toBe(url);
+});
+
+test('Clean Domain', () => {
+  var domain = 'https://www.similarweb.com/test';
+
+  expect(cleanDomain(domain)).toBe('similarweb.com');
 });

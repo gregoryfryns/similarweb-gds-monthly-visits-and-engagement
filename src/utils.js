@@ -36,7 +36,7 @@ function retrieveOrGet(url, params) {
         cache.put(cacheKey, data);
       }
       catch (e) {
-        console.log('Error when storing in cache', cacheKey, e);
+        console.error('Error when storing in cache', cacheKey, e);
       }
     }
   }
@@ -106,7 +106,8 @@ function httpGet(url, params, retries) {
 
 /* istanbul ignore next */
 function retrieveOrGetAll(urls) {
-  var HTTP_GET_RETRIES = 5;
+  console.info('Bulk fetch for urls: ' + JSON.stringify(urls));
+  var HTTP_GET_RETRIES = 3;
   var cache = new ChunkyCache(CacheService.getUserCache());
   var resultsDict = {};
   var toApi = [];
@@ -122,9 +123,10 @@ function retrieveOrGetAll(urls) {
       console.log('retrieveOrGetAll: Error when fetching from cache:', cacheKey, e);
       toApi.push(url);
     }
+
     if (!data) {
+      console.info('No data cached for ', cacheKey, ', calling API');
       toApi.push(url);
-      console.log('No data cached for ', cacheKey, ', calling API');
     }
     else {
       resultsDict[url] = data;
@@ -140,7 +142,7 @@ function retrieveOrGetAll(urls) {
         cache.put(cacheKey, response);
       }
       catch (e) {
-        console.log('Error when storing in cache', cacheKey, e);
+        console.error('Error when storing in cache', cacheKey, e);
       }
       resultsDict[toApi[i]] = response;
     }
@@ -188,7 +190,7 @@ function httpGetAll(urls, retries) {
   if (retry.length > 0) {
     if (retries > 0) {
       console.warn('HTTP Get failed for urls: ', JSON.stringify(retry), ' - ', retries, ' attempts left');
-      Utilities.sleep(1000); // wait 1s before retrying
+      Utilities.sleep(600); // wait before retrying
       httpGetAll(retry, retries - 1).forEach(function(x, j) {
         resultsDict[retry[j]] = x;
       });
@@ -229,6 +231,16 @@ function buildUrl(url, params) {
   return fullUrl;
 }
 
+/**
+ * Takes a domain name and strips off the protocol (http/https), www. and folder
+ *
+ * @param {string} domain - domain to be cleaned
+ * @return {string} Clean domain name
+ */
+function cleanDomain(domain) {
+  return domain.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/ig, '').replace(/\/.*$/ig, '').toLowerCase();
+}
+
 /* global exports */
 /* istanbul ignore next */
 if (typeof(exports) !== 'undefined') {
@@ -237,4 +249,5 @@ if (typeof(exports) !== 'undefined') {
   exports['retrieveOrGetAll'] = retrieveOrGetAll;
   exports['dateToYearMonth'] = dateToYearMonth;
   exports['buildUrl'] = buildUrl;
+  exports['cleanDomain'] = cleanDomain;
 }
