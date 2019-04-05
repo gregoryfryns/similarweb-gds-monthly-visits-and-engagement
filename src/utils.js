@@ -166,37 +166,61 @@ function httpGetAll(urls, retries) {
   if (typeof(retries) == 'undefined') { retries = 3; }
   var resultsDict = {};
   var retry = [];
+
+  var urlsMuteExceptions = urls.map(function(url) {
+    return { url: url, method: 'get', muteHttpExceptions: true };
+  });
+
   try {
-    var responses = UrlFetchApp.fetchAll(urls);
-  }
-  catch (e) {
-    DataStudioApp.createCommunityConnector()
-      .newUserError()
-      .setDebugText('Error calling the SW API:' + e)
-      .setText('There was an error communicating with the service. Try again later, or file an issue if this error persists.')
-      .throwException();
+    var responses = UrlFetchApp.fetchAll(urlsMuteExceptions);
   }
 
-  responses.forEach(function(response, i) {
-    var data = JSON.parse(response);
-    if (data && data.meta && data.meta.status == 'Success') {
-      resultsDict[urls[i]] = data;
-    }
-    else {
-      retry.push(urls[i]);
-    }
-  });
+  catch (e) {
+    // show error message in logs, an exception will be thrown after we parse all the results
+    console.warn('Error while calling the API: ' + e);
+  }
+
+  if (responses) {
+    responses.forEach(function(response, i) {
+      try {
+        var data = JSON.parse(response);
+        if (data && data.meta && data.meta.status == 'Success') {
+          resultsDict[urls[i]] = data;
+        }
+        else {
+          if (data && data.meta && data.meta.error) {
+            console.warn('Error for url ' + urls[i].url + ': ' + data.meta.error);
+          }
+          retry.push(urls[i]);
+        }
+      }
+      catch (e) {
+        if (retries > 0) {
+          // show error message in logs, an exception will be thrown after we parse all the results
+          console.warn('Invalid response for ' + urls[i] + ', (' + retries + ' attempts left) - ' + data + ' - exception message: ' + e);
+        }
+        retry.push(urls[i]);
+      }
+    });
+  }
+  else {
+    retry = urls;
+  }
 
   if (retry.length > 0) {
     if (retries > 0) {
-      console.warn('HTTP Get failed for urls: ', JSON.stringify(retry), ' - ', retries, ' attempts left');
-      Utilities.sleep(600); // wait before retrying
+      console.warn('HTTP Get failed ' + retry.length + ' urls, ', retries, ' attempts left');
+      Utilities.sleep(600); // wait before trying again
       httpGetAll(retry, retries - 1).forEach(function(x, j) {
         resultsDict[retry[j]] = x;
       });
     }
     else {
-      console.error('Could not retrieve data from API for urls: ', JSON.stringify(retry));
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText('Could not retrieve data from the API for urls ' + JSON.stringify(retry))
+        .setText('There was an error communicating with the service. Try again later, or file an issue if this error persists.')
+        .throwException();
     }
   }
 
