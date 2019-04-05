@@ -201,7 +201,7 @@ function getConnectorFields() {
     .setDescription('Amount of unique users that visited the domain within a month')
     .setType(types.NUMBER)
     .setIsReaggregatable(true)
-    .setAggregation(aggregations.SUM);
+    .setAggregation(aggregations.AVG);
 
   fields.setDefaultDimension('domain');
   fields.setDefaultMetric('visits');
