@@ -1,7 +1,7 @@
-/* global DataStudioApp, Session, PropertiesService */
+/* global DataStudioApp, Session, PropertiesService, UrlFetchApp */
 
 if (typeof(require) !== 'undefined') {
-  var [httpGet, retrieveOrGet, retrieveOrGetAll, dateToYearMonth, buildUrl, cleanDomain] = require('./utils.js')['httpGet', 'retrieveOrGet', 'retrieveOrGetAll', 'dateToYearMonth', 'buildUrl', 'cleanDomain'];
+  var [retrieveOrGet, retrieveOrGetAll, dateToYearMonth, buildUrl, cleanDomain] = require('./utils.js')['retrieveOrGet', 'retrieveOrGetAll', 'dateToYearMonth', 'buildUrl', 'cleanDomain'];
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -24,8 +24,12 @@ function isAuthValid() {
   var userProperties = PropertiesService.getUserProperties();
   var key = userProperties.getProperty('dscc.similarwebapi.key');
 
-  var data = httpGet('https://api.similarweb.com/capabilities', { api_key: key });
+  var data = null;
 
+  if (key) {
+    var response = UrlFetchApp.fetch('https://api.similarweb.com/capabilities?api_key=' + key, { muteHttpExceptions: true });
+    data = JSON.parse(response);
+  }
   return (data && data.hasOwnProperty('remaining_hits'));
 }
 
@@ -52,7 +56,8 @@ function checkForValidKey(key) {
   }
 
   // Check if key is valid
-  var data = httpGet('https://api.similarweb.com/capabilities', { api_key: key });
+  var response = UrlFetchApp.fetch('https://api.similarweb.com/capabilities?api_key=' + key, { muteHttpExceptions: true });
+  var data = JSON.parse(response);
 
   return (data && data.hasOwnProperty('remaining_hits'));
 }
@@ -92,15 +97,15 @@ function getConfig() {
   config.newTextInput()
     .setId('domains')
     .setName('Domains')
-    .setHelpText('Enter the name of up to 10 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
-    .setPlaceholder('cnn.com, bbc.com, nytimes.com')
+    .setHelpText('Enter the name of up to 25 domains you would like to analyze, separated by commas (e.g. cnn.com, foxnews.com, washingtonpost.com, nytimes.com)')
+    .setPlaceholder('e.g.: cnn.com, foxnews.com, washingtonpost.com, nytimes.com')
     .setAllowOverride(true);
 
   config.newTextInput()
     .setId('country')
     .setName('Country Code')
     .setHelpText('ISO 2-letter country code of the country (e.g. us, gb - world for Worldwide)')
-    .setPlaceholder('us')
+    .setPlaceholder('e.g.: us')
     .setAllowOverride(true);
 
   return config.build();
@@ -217,7 +222,7 @@ function getSchema(request) {
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
-  var MAX_NB_DOMAINS = 10;
+  var MAX_NB_DOMAINS = 25;
 
   var userProperties = PropertiesService.getUserProperties();
   var apiKey = userProperties.getProperty('dscc.similarwebapi.key');
