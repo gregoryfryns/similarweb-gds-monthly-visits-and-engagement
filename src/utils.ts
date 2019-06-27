@@ -20,27 +20,6 @@ export function dateToYearMonth(dateString: string): string {
   return dateString.split('-').slice(0, 2).join('-');
 }
 
-/**
- * Returns a list with all the months between months passed as parameters (included)
- *
- * @param startMonth Start month (format 'YYYY-mm')
- * @param endMonth End month (format 'YYYY-mm')
- * @return List of months between start and end (format 'YYYY-mm')
- */
-export function monthsBetween(startMonth: string, endMonth: string): string[] {
-  const months: string[] = [];
-  let currentMonth = startMonth;
-
-  while (currentMonth < endMonth) {
-    months.push(currentMonth);
-    const yearMonth = currentMonth.split('-').map((x): number => parseInt(x, 10));
-    currentMonth = yearMonth[1] === 12 ? (yearMonth[0] + 1) + '-01' : yearMonth[0] + '-' + ('0' + (yearMonth[1] + 1)).slice(-2);
-  }
-  months.push(currentMonth);
-
-  return months;
-}
-
 export interface UrlDataMap {
   [propName: string]: SimilarwebApiReply;
 }
