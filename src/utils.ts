@@ -45,7 +45,7 @@ export interface UrlDataMap {
   [propName: string]: SimilarwebApiReply;
 }
 
-export class ChunkyCache {
+class ChunkyCache {
   private static TIMEOUT: number = 7200; // 2 hours
   private static CHUNK_SIZE: number = 50 * 1024; // max 100kb, 2 bytes per character
   private static cacheService: GoogleAppsScript.Cache.Cache;

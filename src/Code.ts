@@ -267,6 +267,7 @@ class ApiConfiguration {
       'show_verified': 'false'
     };
     if (!capData.hasOwnProperty(endpointType)) {
+      console.log('capabilities - ', JSON.stringify(capData));
       DataStudioApp.createCommunityConnector()
         .newUserError()
         .setDebugText(`Invalid Endpoint Type : ${endpointType}`)
@@ -430,7 +431,7 @@ function buildTabularData(requestedFields: GoogleAppsScript.Data_Studio.Fields, 
           }
         });
 
-        requestedData.push(row);
+        requestedData.push({ 'values': row });
       });
     });
   });
@@ -454,9 +455,6 @@ function getData(request): object {
   const responses = retrieveOrGetAll(urls);
   const preparedData = prepareData(responses);
   const tabularData = buildTabularData(requestedFields, preparedData);
-  // eslint-disable-next-line @typescript-eslint/camelcase
-  console.log('requested fields - ', JSON.stringify(requestedFields.asArray().map((x: GoogleAppsScript.Data_Studio.Field): string => x.getId())));
-  console.log('tabular data - ', JSON.stringify(tabularData));
 
   return {
     schema: requestedFields.build(),
