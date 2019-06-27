@@ -1,4 +1,4 @@
-import { SimilarwebApiReply } from './types/similarweb-api';
+import { SimilarwebApiReply, CapabilitiesReply } from './types/similarweb-api';
 
 /**
  * Takes a domain name, strips off the protocol (http/https), www. and folder, and make it URL safe
@@ -250,7 +250,7 @@ class ChunkyCache {
       });
     }
     catch (e) {
-      console.error('ChunkyCache: Could not get chunks data - ', e);
+      console.warn('ChunkyCache: Could not get chunks data - ', e);
     }
 
     return result;
@@ -300,7 +300,11 @@ export function httpGet(url: string, params: object = {}, retries: number = 3): 
       data = httpGet(url, params, retries - 1);
     }
     else {
-      console.error('Could not get data from API - ', e);
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText(`httpGet: Could not retrieve the data for url: ${url} - error: ${e}`)
+        .setText(`An error has occurred when contacting the Similarweb API, please contact the developers to fix the problem.`)
+        .throwException();
     }
   }
   console.log('httpGet: Retrieved data successfully');
@@ -309,9 +313,12 @@ export function httpGet(url: string, params: object = {}, retries: number = 3): 
     data = JSON.parse(response.getContentText());
   }
   catch (e) {
-    console.error('Could not parse JSON reply. Exception details: ' + e);
+    DataStudioApp.createCommunityConnector()
+      .newUserError()
+      .setDebugText(`httpGet: error parsing the JSON for url: ${url} - error: ${e}`)
+      .setText(`An error has occurred when contacting the Similarweb API, please contact the developers to fix the problem.`)
+      .throwException();
   }
-
   return data;
 }
 
@@ -426,8 +433,11 @@ export function httpGetAll(urls: string[], batchSize: number = 10, retries: numb
       });
     }
     else {
-      missed.forEach((url: string): void => result[url] = null);
-    }
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText(`httpGet: Could not retrieve the data for ${missed.length} urls: ${JSON.stringify(missed).slice(0, 1000)}`)
+        .setText(`An error has occurred when contacting the Similarweb API, please contact the developers to fix the problem.`)
+        .throwException();    }
   }
 
   return result;
@@ -480,5 +490,73 @@ export class Set {
 
   public getValues(): string[] {
     return Object.keys(this.set);
+  }
+}
+
+export enum EndpointType {
+  WebDesktopData = 'web_desktop_data',
+  WebMobileData = 'web_mobile_data',
+  AppData = 'app_data',
+  AppEngagmentData = 'app_engagement_data'
+}
+
+export class ApiConfiguration {
+  private static capData: CapabilitiesReply;
+  private static apiKey: string;
+  private static instance: ApiConfiguration;
+
+  private constructor() {
+  }
+
+  public static getInstance(): ApiConfiguration {
+    if (!ApiConfiguration.instance) {
+      ApiConfiguration.instance = new ApiConfiguration();
+    }
+
+    return ApiConfiguration.instance;
+  }
+
+  public setApiKey(apiKey: string): void {
+    ApiConfiguration.apiKey = apiKey;
+    ApiConfiguration.capData = retrieveOrGet('https://api.similarweb.com/capabilities', { 'api_key': apiKey }) as CapabilitiesReply;
+  }
+
+  public hasApiKey(): boolean {
+    return !!ApiConfiguration.apiKey;
+  }
+
+  /**
+   * Returns the default parameters for the API request, including the start and
+   * end dates, based on the API key access rights. Returns null country is not available.
+   * @param endpointType Type of the endpoint you want to get the parameters for
+   * @param country 2-letter ISO country code, or 'world' for Worldwide
+   */
+  public getDefaultParams(endpointType: EndpointType, country: string): object {
+    const capData = ApiConfiguration.capData;
+    const params = {
+      'api_key': ApiConfiguration.apiKey,
+      'country': country,
+      'granularity': 'monthly',
+      'main_domain_only': 'false',
+      'show_verified': 'false'
+    };
+    if (!capData.hasOwnProperty(endpointType)) {
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText(`Invalid Endpoint Type : ${endpointType}`)
+        .setText(`An error has occurred, please contact the developers to fix the problem.`)
+        .throwException();
+    }
+
+    // Check if the country is available for the selected API key
+    if (capData[endpointType].countries.some((c): boolean => c.code.toLowerCase() === country)) {
+      params['start_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.start_date);
+      params['end_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.end_date);
+    }
+    else {
+      return null;
+    }
+
+    return params;
   }
 }

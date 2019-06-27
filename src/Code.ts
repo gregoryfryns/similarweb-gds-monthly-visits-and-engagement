@@ -1,5 +1,5 @@
 import { CapabilitiesReply } from './types/similarweb-api';
-import { buildUrl, cleanDomain, httpGet, retrieveOrGet, retrieveOrGetAll, dateToYearMonth, UrlDataMap, Set } from './utils';
+import { buildUrl, cleanDomain, httpGet, retrieveOrGetAll, UrlDataMap, Set, ApiConfiguration, EndpointType } from './utils';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getAuthType(): object {
@@ -217,75 +217,6 @@ function getConnectorFields(): GoogleAppsScript.Data_Studio.Fields {
 function getSchema(request): object {
   const fields = getConnectorFields().build();
   return { schema: fields };
-}
-
-enum EndpointType {
-  WebDesktopData = 'web_desktop_data',
-  WebMobileData = 'web_mobile_data',
-  AppData = 'app_data',
-  AppEngagmentData = 'app_engagement_data'
-}
-
-class ApiConfiguration {
-  private static capData: CapabilitiesReply;
-  private static apiKey: string;
-  private static instance: ApiConfiguration;
-
-  private constructor() {
-  }
-
-  public static getInstance(): ApiConfiguration {
-    if (!ApiConfiguration.instance) {
-      ApiConfiguration.instance = new ApiConfiguration();
-    }
-
-    return ApiConfiguration.instance;
-  }
-
-  public setApiKey(apiKey: string): void {
-    ApiConfiguration.apiKey = apiKey;
-    ApiConfiguration.capData = retrieveOrGet('https://api.similarweb.com/capabilities', { 'api_key': apiKey }) as CapabilitiesReply;
-  }
-
-  public hasApiKey(): boolean {
-    return !!ApiConfiguration.apiKey;
-  }
-
-  /**
-   * Returns the default parameters for the API request, including the start and
-   * end dates, based on the API key access rights. Returns null country is not available.
-   * @param endpointType Type of the endpoint you want to get the parameters for
-   * @param country 2-letter ISO country code, or 'world' for Worldwide
-   */
-  public getDefaultParams(endpointType: EndpointType, country: string): object {
-    const capData = ApiConfiguration.capData;
-    const params = {
-      'api_key': ApiConfiguration.apiKey,
-      'country': country,
-      'granularity': 'monthly',
-      'main_domain_only': 'false',
-      'show_verified': 'false'
-    };
-    if (!capData.hasOwnProperty(endpointType)) {
-      console.log('capabilities - ', JSON.stringify(capData));
-      DataStudioApp.createCommunityConnector()
-        .newUserError()
-        .setDebugText(`Invalid Endpoint Type : ${endpointType}`)
-        .setText(`An error has occurred, please contact the developers to fix the problem.`)
-        .throwException();
-    }
-
-    // Check if the country is available for the selected API key
-    if (capData[endpointType].countries.some((c): boolean => c.code.toLowerCase() === country)) {
-      params['start_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.start_date);
-      params['end_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.end_date);
-    }
-    else {
-      return null;
-    }
-
-    return params;
-  }
 }
 
 // eslint-disable-next-line @typescript-eslint/camelcase
