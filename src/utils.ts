@@ -550,8 +550,8 @@ export class ApiConfiguration {
 
     // Check if the country is available for the selected API key
     if (capData[endpointType].countries.some((c): boolean => c.code.toLowerCase() === country)) {
-      params['start_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.start_date);
-      params['end_date'] = dateToYearMonth(capData.web_desktop_data.snapshot_interval.end_date);
+      params['start_date'] = dateToYearMonth(capData[endpointType].snapshot_interval.start_date);
+      params['end_date'] = dateToYearMonth(capData[endpointType].snapshot_interval.end_date);
     }
     else {
       return null;
